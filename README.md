@@ -1,6 +1,6 @@
 # Live Demo
 
-View the demo [here](https://github.com/matthewjselby/3d-robot-arm-demo/deployments/github-pages)
+View the demo [here](https://matthewjselby.github.io/3d-robot-arm-demo/)
 
 # 6-DOF Robotic Arm Demo
 
