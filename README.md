@@ -1,3 +1,7 @@
+# Live Demo
+
+View the demo [here](https://github.com/matthewjselby/3d-robot-arm-demo/deployments/github-pages)
+
 # 6-DOF Robotic Arm Demo
 
 An interactive 3D simulation of a 6-axis robotic arm built with Three.js. This demo features real-time kinematics, collision detection, and an intuitive control interface.
