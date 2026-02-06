@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>6-DOF Robotic Arm Demo</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@500;700;900&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --bg-dark: #0a0e14;
+            --bg-panel: #141920;
+            --accent-cyan: #00d9ff;
+            --accent-orange: #ff6b35;
+            --text-primary: #e0e6f0;
+            --text-dim: #7a8ba3;
+            --border: #1f2937;
+        }
+        
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            overflow: hidden;
+            position: relative;
+        }
+        
+        /* Animated grid background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(var(--border) 1px, transparent 1px),
+                linear-gradient(90deg, var(--border) 1px, transparent 1px);
+            background-size: 50px 50px;
+            opacity: 0.3;
+            z-index: 0;
+            pointer-events: none;
+        }
+        
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        
+        #controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--bg-panel);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            z-index: 10;
+            max-height: calc(100vh - 40px);
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            width: 320px;
+        }
+        
+        #controls::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        #controls::-webkit-scrollbar-track {
+            background: var(--bg-dark);
+            border-radius: 4px;
+        }
+        
+        #controls::-webkit-scrollbar-thumb {
+            background: var(--accent-cyan);
+            border-radius: 4px;
+        }
+        
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 24px;
+            font-weight: 900;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-orange));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-transform: uppercase;
+        }
+        
+        .subtitle {
+            color: var(--text-dim);
+            font-size: 11px;
+            margin-bottom: 24px;
+            letter-spacing: 0.5px;
+        }
+        
+        .control-group {
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .control-group:last-child {
+            border-bottom: none;
+        }
+        
+        label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .joint-name {
+            color: var(--accent-cyan);
+        }
+        
+        .joint-value {
+            font-family: 'Orbitron', monospace;
+            color: var(--accent-orange);
+            font-size: 14px;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: var(--bg-dark);
+            outline: none;
+            -webkit-appearance: none;
+            position: relative;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--accent-cyan);
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 217, 255, 0.5);
+            transition: all 0.2s;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb:hover {
+            background: var(--accent-orange);
+            box-shadow: 0 0 15px rgba(255, 107, 53, 0.7);
+            transform: scale(1.2);
+        }
+        
+        input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--accent-cyan);
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 10px rgba(0, 217, 255, 0.5);
+            transition: all 0.2s;
+        }
+        
+        input[type="range"]::-moz-range-thumb:hover {
+            background: var(--accent-orange);
+            box-shadow: 0 0 15px rgba(255, 107, 53, 0.7);
+            transform: scale(1.2);
+        }
+        
+        .preset-buttons {
+            display: block;
+            margin-top: 24px;
+        }
+        
+        button {
+            font-family: 'JetBrains Mono', monospace;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            border: 2px solid var(--accent-cyan);
+            padding: 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: var(--accent-cyan);
+            transition: left 0.3s;
+            z-index: -1;
+        }
+        
+        button:hover::before {
+            left: 0;
+        }
+        
+        button:hover {
+            color: var(--bg-dark);
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 20px rgba(0, 217, 255, 0.3);
+        }
+        
+        #info {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: var(--bg-panel);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 20px;
+            z-index: 10;
+            font-size: 11px;
+            color: var(--text-dim);
+            backdrop-filter: blur(10px);
+        }
+        
+        #info strong {
+            color: var(--accent-cyan);
+            font-weight: 700;
+        }
+        
+        /* Loading animation */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .loading {
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    
+    <div id="controls">
+        <h1>ARM_CTRL</h1>
+        <div class="subtitle">6-DOF Robotic Arm Demo</div>
+        
+        <div class="control-group">
+            <label>
+                <span class="joint-name">J1: Base Rotation</span>
+                <span class="joint-value" id="value-j1">-75°</span>
+            </label>
+            <input type="range" id="j1" min="-180" max="180" value="-75" step="1">
+        </div>
+        
+        <div class="control-group">
+            <label>
+                <span class="joint-name">J2: Shoulder</span>
+                <span class="joint-value" id="value-j2">20°</span>
+            </label>
+            <input type="range" id="j2" min="-90" max="90" value="20" step="1">
+        </div>
+        
+        <div class="control-group">
+            <label>
+                <span class="joint-name">J3: Elbow</span>
+                <span class="joint-value" id="value-j3">-45°</span>
+            </label>
+            <input type="range" id="j3" min="-135" max="135" value="-45" step="1">
+        </div>
+        
+        <div class="control-group">
+            <label>
+                <span class="joint-name">J4: Wrist Roll</span>
+                <span class="joint-value" id="value-j4">0°</span>
+            </label>
+            <input type="range" id="j4" min="-180" max="180" value="0" step="1">
+        </div>
+        
+        <div class="control-group">
+            <label>
+                <span class="joint-name">J5: Wrist Pitch</span>
+                <span class="joint-value" id="value-j5">0°</span>
+            </label>
+            <input type="range" id="j5" min="-90" max="90" value="0" step="1">
+        </div>
+        
+        <div class="control-group">
+            <label>
+                <span class="joint-name">J6: Wrist Yaw</span>
+                <span class="joint-value" id="value-j6">0°</span>
+            </label>
+            <input type="range" id="j6" min="-180" max="180" value="0" step="1">
+        </div>
+        
+        <div class="preset-buttons">
+            <button onclick="resetPose()" style="width: 100%;">Reset</button>
+        </div>
+    </div>
+    
+    <div id="info">
+        <strong>CONTROLS:</strong> Use sliders to adjust joints | Rotate view with mouse
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.182.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.182.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0e14);
+        scene.fog = new THREE.Fog(0x0a0e14, 10, 50);
+
+        // Camera
+        const camera = new THREE.PerspectiveCamera(
+            60,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            1000
+        );
+        camera.position.set(8, 6, 8);
+
+        // Renderer
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // Controls
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 5;
+        controls.maxDistance = 30;
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+        scene.add(ambientLight);
+
+        const mainLight = new THREE.DirectionalLight(0x00d9ff, 1.5);
+        mainLight.position.set(5, 10, 5);
+        mainLight.castShadow = true;
+        mainLight.shadow.camera.near = 0.1;
+        mainLight.shadow.camera.far = 50;
+        mainLight.shadow.camera.left = -10;
+        mainLight.shadow.camera.right = 10;
+        mainLight.shadow.camera.top = 10;
+        mainLight.shadow.camera.bottom = -10;
+        mainLight.shadow.mapSize.width = 2048;
+        mainLight.shadow.mapSize.height = 2048;
+        scene.add(mainLight);
+
+        const fillLight = new THREE.DirectionalLight(0xff6b35, 0.8);
+        fillLight.position.set(-5, 5, -5);
+        scene.add(fillLight);
+
+        const rimLight = new THREE.PointLight(0x00d9ff, 1, 20);
+        rimLight.position.set(0, 8, -8);
+        scene.add(rimLight);
+
+        // Ground plane
+        const groundGeometry = new THREE.CircleGeometry(20, 64);
+        const groundMaterial = new THREE.MeshStandardMaterial({
+            color: 0x141920,
+            roughness: 0.8,
+            metalness: 0.2
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Grid helper
+        const gridHelper = new THREE.GridHelper(20, 20, 0x1f2937, 0x1f2937);
+        gridHelper.position.y = 0.01;
+        scene.add(gridHelper);
+
+        // Materials
+        const baseMaterial = new THREE.MeshStandardMaterial({
+            color: 0x2c3e50,
+            roughness: 0.4,
+            metalness: 0.8
+        });
+
+        const segmentMaterial = new THREE.MeshStandardMaterial({
+            color: 0x3498db,
+            roughness: 0.3,
+            metalness: 0.9
+        });
+
+        const jointMaterial = new THREE.MeshStandardMaterial({
+            color: 0x00d9ff,
+            roughness: 0.2,
+            metalness: 1.0,
+            emissive: 0x00d9ff,
+            emissiveIntensity: 0.2
+        });
+
+        const endEffectorMaterial = new THREE.MeshStandardMaterial({
+            color: 0xff6b35,
+            roughness: 0.3,
+            metalness: 0.8,
+            emissive: 0xff6b35,
+            emissiveIntensity: 0.3
+        });
+
+        // Helper function to create a segment
+        function createSegment(length, radius1, radius2, color) {
+            const group = new THREE.Group();
+            
+            // Main cylinder
+            const geometry = new THREE.CylinderGeometry(radius1, radius2, length, 16);
+            const material = color || segmentMaterial;
+            const cylinder = new THREE.Mesh(geometry, material);
+            cylinder.rotation.z = Math.PI / 2;
+            cylinder.position.x = length / 2;
+            cylinder.castShadow = true;
+            cylinder.receiveShadow = true;
+            group.add(cylinder);
+            
+            return group;
+        }
+
+        // Helper function to create a joint
+        function createJoint(radius) {
+            const group = new THREE.Group();
+            
+            // Sphere
+            const sphereGeometry = new THREE.SphereGeometry(radius, 16, 16);
+            const sphere = new THREE.Mesh(sphereGeometry, jointMaterial);
+            sphere.castShadow = true;
+            sphere.receiveShadow = true;
+            group.add(sphere);
+            
+            return group;
+        }
+
+        // Build the robotic arm
+        const arm = {
+            base: new THREE.Group(),
+            j1: new THREE.Group(), // Base rotation
+            j2: new THREE.Group(), // Shoulder
+            j3: new THREE.Group(), // Elbow
+            j4: new THREE.Group(), // Wrist roll
+            j5: new THREE.Group(), // Wrist pitch
+            j6: new THREE.Group(), // Wrist yaw
+        };
+
+        // Base
+        const baseGeometry = new THREE.CylinderGeometry(1.2, 1.5, 0.5, 32);
+        const base = new THREE.Mesh(baseGeometry, baseMaterial);
+        base.position.y = 0.25;
+        base.castShadow = true;
+        base.receiveShadow = true;
+        arm.base.add(base);
+
+        // Add glowing ring to base
+        const ringGeometry = new THREE.TorusGeometry(1.3, 0.05, 16, 32);
+        const ringMaterial = new THREE.MeshStandardMaterial({
+            color: 0x00d9ff,
+            emissive: 0x00d9ff,
+            emissiveIntensity: 0.5
+        });
+        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+        ring.rotation.x = Math.PI / 2;
+        ring.position.y = 0.5;
+        arm.base.add(ring);
+
+        arm.base.add(arm.j1);
+        arm.j1.position.y = 0.5;
+
+        // J1 visual (base rotation joint)
+        const j1Visual = createJoint(0.4);
+        arm.j1.add(j1Visual);
+
+        // Link 1 (from base to shoulder)
+        const link1 = createSegment(0.8, 0.3, 0.25);
+        link1.rotation.z = Math.PI / 2;
+        link1.position.y = 0.4;
+        arm.j1.add(link1);
+
+        // J2 (shoulder)
+        arm.j1.add(arm.j2);
+        arm.j2.position.y = 1.2;
+
+        const j2Visual = createJoint(0.35);
+        arm.j2.add(j2Visual);
+
+        // Link 2 (upper arm)
+        const link2 = createSegment(2.5, 0.25, 0.2);
+        arm.j2.add(link2);
+
+        // J3 (elbow)
+        arm.j2.add(arm.j3);
+        arm.j3.position.x = 2.5;
+
+        const j3Visual = createJoint(0.3);
+        arm.j3.add(j3Visual);
+
+        // Link 3 (forearm)
+        const link3 = createSegment(2.0, 0.2, 0.15);
+        arm.j3.add(link3);
+
+        // J4 (wrist roll)
+        arm.j3.add(arm.j4);
+        arm.j4.position.x = 2.0;
+
+        const j4Visual = createJoint(0.25);
+        arm.j4.add(j4Visual);
+
+        // Link 4 (wrist segment)
+        const link4 = createSegment(0.5, 0.15, 0.12);
+        arm.j4.add(link4);
+
+        // J5 (wrist pitch)
+        arm.j4.add(arm.j5);
+        arm.j5.position.x = 0.5;
+
+        const j5Visual = createJoint(0.2);
+        arm.j5.add(j5Visual);
+
+        // Link 5 (hand connector)
+        const link5 = createSegment(0.3, 0.12, 0.1);
+        arm.j5.add(link5);
+
+        // J6 (wrist yaw / end effector)
+        arm.j5.add(arm.j6);
+        arm.j6.position.x = 0.3;
+
+        // End effector - simple box vacuum attachment
+        const endEffectorGeometry = new THREE.BoxGeometry(0.4, 0.3, 0.3);
+        const endEffector = new THREE.Mesh(endEffectorGeometry, endEffectorMaterial);
+        endEffector.castShadow = true;
+        endEffector.receiveShadow = true;
+        endEffector.position.x = 0.2;
+        arm.j6.add(endEffector);
+
+        scene.add(arm.base);
+
+        // Joint controls
+        const joints = ['j1', 'j2', 'j3', 'j4', 'j5', 'j6'];
+        const sliders = {};
+        const valueDisplays = {};
+
+        joints.forEach(joint => {
+            sliders[joint] = document.getElementById(joint);
+            valueDisplays[joint] = document.getElementById(`value-${joint}`);
+            
+            sliders[joint].addEventListener('input', (e) => {
+                const value = parseFloat(e.target.value);
+                lastChangedJoint = joint;
+                valueDisplays[joint].textContent = `${value}°`;
+                updateArm();
+                
+                // If no collision, save this as valid value
+                if (!checkCollisions()) {
+                    lastValidValues[joint] = value;
+                }
+            });
+        });
+
+        function updateArm() {
+            arm.j1.rotation.y = THREE.MathUtils.degToRad(parseFloat(sliders.j1.value));
+            arm.j2.rotation.z = THREE.MathUtils.degToRad(parseFloat(sliders.j2.value));
+            arm.j3.rotation.z = THREE.MathUtils.degToRad(parseFloat(sliders.j3.value));
+            arm.j4.rotation.x = THREE.MathUtils.degToRad(parseFloat(sliders.j4.value));
+            arm.j5.rotation.z = THREE.MathUtils.degToRad(parseFloat(sliders.j5.value));
+            arm.j6.rotation.x = THREE.MathUtils.degToRad(parseFloat(sliders.j6.value));
+            
+            // Check for collisions and revert if necessary
+            if (checkCollisions()) {
+                // Revert the last changed joint
+                revertLastChange();
+            }
+        }
+
+        // Track last valid joint values
+        let lastValidValues = {
+            j1: -75, j2: 20, j3: -45, j4: 0, j5: 0, j6: 0
+        };
+        
+        let lastChangedJoint = null;
+
+        // Check for ground plane and base collisions
+        function checkCollisions() {
+            // Update world matrices
+            arm.base.updateMatrixWorld(true);
+            
+            // Get world positions of key points along the arm
+            const checkPoints = [];
+            
+            // Check points along each link
+            [arm.j2, arm.j3, arm.j4, arm.j5, arm.j6].forEach(joint => {
+                const worldPos = new THREE.Vector3();
+                joint.getWorldPosition(worldPos);
+                checkPoints.push(worldPos);
+            });
+            
+            // Check intermediate points along links
+            // Link 2 (upper arm) - check midpoint and end
+            for (let t = 0.3; t <= 1.0; t += 0.3) {
+                const testPoint = new THREE.Vector3(2.5 * t, 0, 0);
+                testPoint.applyMatrix4(arm.j2.matrixWorld);
+                checkPoints.push(testPoint);
+            }
+            
+            // Link 3 (forearm) - check midpoint and end
+            for (let t = 0.3; t <= 1.0; t += 0.3) {
+                const testPoint = new THREE.Vector3(2.0 * t, 0, 0);
+                testPoint.applyMatrix4(arm.j3.matrixWorld);
+                checkPoints.push(testPoint);
+            }
+            
+            // Ground plane collision check (with safety margin)
+            const groundSafetyMargin = 0.15;
+            for (const point of checkPoints) {
+                if (point.y < groundSafetyMargin) {
+                    return true;
+                }
+            }
+            
+            // Base collision check
+            // Base is a cylinder centered at (0, 0.25, 0) with radius ~1.5 and height 0.5
+            const baseCenter = new THREE.Vector3(0, 0.25, 0);
+            const baseRadius = 1.5;
+            const baseHeight = 0.5;
+            const baseSafetyMargin = 0.3;
+            
+            for (const point of checkPoints) {
+                // Check if point is within base cylinder (with safety margin)
+                const dx = point.x - baseCenter.x;
+                const dz = point.z - baseCenter.z;
+                const horizontalDist = Math.sqrt(dx * dx + dz * dz);
+                
+                // Check if within cylinder bounds
+                if (horizontalDist < (baseRadius + baseSafetyMargin) && 
+                    point.y < (baseHeight + baseSafetyMargin) &&
+                    point.y > -baseSafetyMargin) {
+                    // Ignore points very close to base (like j1)
+                    if (point.y > 1.0) {
+                        return true;
+                    }
+                }
+            }
+            
+            return false;
+        }
+        
+        function revertLastChange() {
+            if (lastChangedJoint) {
+                sliders[lastChangedJoint].value = lastValidValues[lastChangedJoint];
+                valueDisplays[lastChangedJoint].textContent = `${Math.round(lastValidValues[lastChangedJoint])}°`;
+                
+                // Reapply the valid value
+                switch(lastChangedJoint) {
+                    case 'j1':
+                        arm.j1.rotation.y = THREE.MathUtils.degToRad(lastValidValues.j1);
+                        break;
+                    case 'j2':
+                        arm.j2.rotation.z = THREE.MathUtils.degToRad(lastValidValues.j2);
+                        break;
+                    case 'j3':
+                        arm.j3.rotation.z = THREE.MathUtils.degToRad(lastValidValues.j3);
+                        break;
+                    case 'j4':
+                        arm.j4.rotation.x = THREE.MathUtils.degToRad(lastValidValues.j4);
+                        break;
+                    case 'j5':
+                        arm.j5.rotation.z = THREE.MathUtils.degToRad(lastValidValues.j5);
+                        break;
+                    case 'j6':
+                        arm.j6.rotation.x = THREE.MathUtils.degToRad(lastValidValues.j6);
+                        break;
+                }
+            }
+        }
+
+        // Preset poses
+        window.resetPose = function() {
+            animateToPose([-75, 20, -45, 0, 0, 0]);
+        };
+
+        function animateToPose(targetAngles, duration = 1000) {
+            const startAngles = joints.map(j => parseFloat(sliders[j].value));
+            const startTime = Date.now();
+
+            function animate() {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                // Ease in-out cubic
+                const eased = progress < 0.5
+                    ? 4 * progress * progress * progress
+                    : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+
+                joints.forEach((joint, i) => {
+                    const value = startAngles[i] + (targetAngles[i] - startAngles[i]) * eased;
+                    sliders[joint].value = value;
+                    valueDisplays[joint].textContent = `${Math.round(value)}°`;
+                });
+
+                updateArm();
+                
+                // Save valid values if no collision
+                if (!checkCollisions()) {
+                    joints.forEach((joint, i) => {
+                        lastValidValues[joint] = startAngles[i] + (targetAngles[i] - startAngles[i]) * eased;
+                    });
+                }
+
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                }
+            }
+
+            animate();
+        }
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Initialize
+        updateArm();
+        animate();
+    </script>
+</body>
+</html>
